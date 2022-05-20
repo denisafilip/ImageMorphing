@@ -9,26 +9,23 @@ int pointsImg1 = 80, pointsImg2 = 80;
 std::vector<Point2f> img1Points;
 std::vector<Point2f> img2Points;
 
-typedef struct _Triangle {
-	int indexP1;
-	int indexP2;
-	int indexP3;
-}Triangle;
-
 typedef struct _TrianglePoint {
 	Point p1;
 	Point p2;
 	Point p3;
+	int indexP1;
+	int indexP2;
+	int indexP3;
 } TrianglePoint;
 
 void setCorrespondingPoints1(int event, int x, int y, int flags, void* param)
 {
-	//More examples: http://opencvexamples.blogspot.com/2014/01/detect-mouse-clicks-and-moves-on-image.html
 	Mat* src = (Mat*)param;
 	if (event == EVENT_LBUTTONDOWN && pointsImg1 > 0)
 	{
 		pointsImg1--;
 		img1Points.push_back(Point2f(x, y));
+		std::cout << x << " : " << y << std::endl;
 		(*src).at<Vec3b>(y, x) = Vec3b(0, 0, 255);
 		imshow("Image 1", *src);
 	}
@@ -36,12 +33,12 @@ void setCorrespondingPoints1(int event, int x, int y, int flags, void* param)
 
 void setCorrespondingPoints2(int event, int x, int y, int flags, void* param)
 {
-	//More examples: http://opencvexamples.blogspot.com/2014/01/detect-mouse-clicks-and-moves-on-image.html
 	Mat* src = (Mat*)param;
 	if (event == EVENT_LBUTTONDOWN && pointsImg2 > 0)
 	{
 		pointsImg2--;
 		img2Points.push_back(Point2f(x, y));
+		std::cout << x << " : " << y << std::endl;
 		(*src).at<Vec3b>(y, x) = Vec3b(0, 0, 255);
 		imshow("Image 2", *src);
 	}
@@ -57,6 +54,24 @@ void setCorrespodingPoints(Mat& img1, Mat& img2) {
 		img1 = imread(fname1, IMREAD_COLOR);
 		img2 = imread(fname2, IMREAD_COLOR);
 
+		img1Points.push_back(Point2f(1, 1));
+		img1Points.push_back(Point2f(1, img1.rows / 2));
+		img1Points.push_back(Point2f(1, img1.rows - 1));
+		img1Points.push_back(Point2f(img1.cols - 1, 1));
+		img1Points.push_back(Point2f(img1.cols / 2, 1));
+		img1Points.push_back(Point2f(img1.cols - 1, img1.rows - 1));
+		img1Points.push_back(Point2f(img1.cols - 1, img1.rows / 2));
+		img1Points.push_back(Point2f(img1.cols / 2, img1.rows - 1));
+
+		img2Points.push_back(Point2f(1, 1));
+		img2Points.push_back(Point2f(1, img2.rows / 2));
+		img2Points.push_back(Point2f(1, img2.rows - 1));
+		img2Points.push_back(Point2f(img2.cols - 1, 1));
+		img2Points.push_back(Point2f(img2.cols / 2, 1));
+		img2Points.push_back(Point2f(img2.cols - 1, img2.rows - 1));
+		img2Points.push_back(Point2f(img2.cols - 1, img2.rows / 2));
+		img2Points.push_back(Point2f(img2.cols / 2, img2.rows - 1));
+
 		namedWindow("Image 1", 1);
 		setMouseCallback("Image 1", setCorrespondingPoints1, &img1);
 		imshow("Image 1", img1);
@@ -65,6 +80,38 @@ void setCorrespodingPoints(Mat& img1, Mat& img2) {
 		setMouseCallback("Image 2", setCorrespondingPoints2, &img2);
 		imshow("Image 2", img2);
 		waitKey(0);
+
+		destroyWindow("Image 1");
+		destroyWindow("Image 2");
+	}
+}
+
+TrianglePoint generateDelaunayTriangle(Vec6f triangleList) {
+	std::vector<Point> pt(3);
+	pt[0] = Point(cvRound(triangleList[0]), cvRound(triangleList[1]));
+	pt[1] = Point(cvRound(triangleList[2]), cvRound(triangleList[3]));
+	pt[2] = Point(cvRound(triangleList[4]), cvRound(triangleList[5]));
+
+	return TrianglePoint{ pt[0], pt[1], pt[2] };
+}
+
+void drawDelaunay(Mat& img, Subdiv2D& subdiv, Scalar delaunay_color) {
+
+	std::vector<Vec6f> triangleList;
+	subdiv.getTriangleList(triangleList);
+	std::vector<Point> pt(3);
+
+	for (int i = 0; i < triangleList.size(); i++) {
+		Vec6f t = triangleList[i];
+
+		pt[0] = Point(cvRound(t[0]), cvRound(t[1]));
+		pt[1] = Point(cvRound(t[2]), cvRound(t[3]));
+		pt[2] = Point(cvRound(t[4]), cvRound(t[5]));
+
+		line(img, pt[0], pt[1], delaunay_color, 1, LINE_AA, 0);
+		line(img, pt[1], pt[2], delaunay_color, 1, LINE_AA, 0);
+		line(img, pt[2], pt[0], delaunay_color, 1, LINE_AA, 0);
+
 	}
 }
 
@@ -78,97 +125,82 @@ int indexOf(Point currentPoint, std::vector<Point2f> points) {
 	return 0;
 }
 
-TrianglePoint generateDelaunayTriangle(Vec6f triangleList) {
-	std::vector<Point> pt(3);
-	pt[0] = Point(cvRound(triangleList[0]), cvRound(triangleList[1]));
-	pt[1] = Point(cvRound(triangleList[2]), cvRound(triangleList[3]));
-	pt[2] = Point(cvRound(triangleList[4]), cvRound(triangleList[5]));
+void generateDelauney(Mat& img, std::vector<Point2f> points, std::vector<TrianglePoint>& delaunayResult) {
 
-	return TrianglePoint{ pt[0], pt[1], pt[2] };
-}
+	Rect rect1(0, 0, img.cols, img.rows);
+	Subdiv2D subdiv(rect1);
 
-std::vector<TrianglePoint> generateDelaunayTriangles() {
-
-}
-
-void drawDelaunay(Mat& img, Subdiv2D& subdiv, Scalar delaunay_color, std::vector<Triangle>& delaunayResult, int indexImg) {
+	for (std::vector<Point2f>::iterator it = points.begin(); it != points.end(); it++) {
+		subdiv.insert(*it);
+	}
 
 	std::vector<Vec6f> triangleList;
 	subdiv.getTriangleList(triangleList);
 	std::vector<Point> pt(3);
-
 	for (int i = 0; i < triangleList.size(); i++) {
 		Vec6f t = triangleList[i];
 
-		pt[0] = Point(cvRound(t[0]), cvRound(t[1]));
-		pt[1] = Point(cvRound(t[2]), cvRound(t[3]));
-		pt[2] = Point(cvRound(t[4]), cvRound(t[5]));
+		pt[0] = Point2f(cvRound(t[0]), cvRound(t[1]));
+		pt[1] = Point2f(cvRound(t[2]), cvRound(t[3]));
+		pt[2] = Point2f(cvRound(t[4]), cvRound(t[5]));
 
-		int p1Index = indexOf(pt[0], indexImg == 1 ? img1Points : img2Points);
-		int p2Index = indexOf(pt[1], indexImg == 1 ? img1Points : img2Points);
-		int p3Index = indexOf(pt[2], indexImg == 1 ? img1Points : img2Points);
-		Triangle currentTriangle = Triangle{ p1Index, p2Index, p3Index };
+		int indexP1 = indexOf(pt[0], points);
+		int indexP2 = indexOf(pt[1], points);
+		int indexP3 = indexOf(pt[2], points);
+
+		TrianglePoint currentTriangle = TrianglePoint{ pt[0], pt[1], pt[2], indexP1,indexP2,indexP3 };
 		delaunayResult.push_back(currentTriangle);
-
-		line(img, pt[0], pt[1], delaunay_color, 1, LINE_AA, 0);
-		line(img, pt[1], pt[2], delaunay_color, 1, LINE_AA, 0);
-		line(img, pt[2], pt[0], delaunay_color, 1, LINE_AA, 0);
-
 	}
 }
 
-std::vector<Triangle> delaunayTriangulation(Mat img, int indexImg) {
+void drawDelaunay(Mat& img, std::vector<Point2f> points) {
 
-	std::vector<Triangle> delaunayResult;
 	Rect rect1(0, 0, img.cols, img.rows);
-	Subdiv2D subdiv1(rect1);
-	Scalar delaunay_color(255, 255, 255), points_color(0, 0, 255);
+	Subdiv2D subdiv(rect1);
+	Scalar delaunay_color(255, 0, 0), points_color(0, 0, 255);
 
-	std::vector<Point2f>::iterator endIterator = indexImg == 1 ? img1Points.end() : img2Points.end();
-
-	for (std::vector<Point2f>::iterator it = indexImg == 1 ? img1Points.begin() : img2Points.begin(); it != endIterator; it++) {
-		subdiv1.insert(*it);
+	for (std::vector<Point2f>::iterator it = points.begin(); it != points.end(); it++) {
+		subdiv.insert(*it);
 	}
 
-	drawDelaunay(img, subdiv1, delaunay_color, delaunayResult, indexImg);
-	std::cout << delaunayResult.size() << "\n";
+	std::vector<Vec6f> triangleList;
+	subdiv.getTriangleList(triangleList);
+	Rect rect(0, 0, img.size().width, img.size().height);
+	std::vector<Point> pt(3);
+	for (int i = 0; i < triangleList.size(); i++) {
+		Vec6f t = triangleList[i];
 
-	return delaunayResult;
+		pt[0] = Point2f(cvRound(t[0]), cvRound(t[1]));
+		pt[1] = Point2f(cvRound(t[2]), cvRound(t[3]));
+		pt[2] = Point2f(cvRound(t[4]), cvRound(t[5]));
+
+		if (rect.contains(pt[0]) && rect.contains(pt[1]) && rect.contains(pt[2]))
+		{
+			line(img, pt[0], pt[1], delaunay_color, 1, LINE_AA, 0);
+			line(img, pt[1], pt[2], delaunay_color, 1, LINE_AA, 0);
+			line(img, pt[2], pt[0], delaunay_color, 1, LINE_AA, 0);
+		}
+	}
 }
 
-std::vector<Point2f> findLocationOfFeaturePoints(double alpha) {
-	std::vector<Point2f> morphImgPoints;
+void findLocationOfFeaturePoints(double alpha, std::vector<Point2f>& morphImgPoints) {
 
 	for (unsigned i = 0; i < img1Points.size(); ++i) {
 		float morphX = (1 - alpha) * img1Points[i].x + alpha * img2Points[i].x;
 		float morphY = (1 - alpha) * img1Points[i].y + alpha * img2Points[i].y;
 		morphImgPoints.push_back(Point2f(morphX, morphY));
 	}
-
-	return morphImgPoints;
 }
 
-std::vector<Triangle> computeAffineTransform(Mat& img, std::vector<Point2f> morphedPoints, std::vector<Point2f> src, std::vector<Point2f> dst) {
-	/*for (unsigned i = 0; i < src.size(); ++i) {
-		std::vector<Point2f> srcTriangle;
-		srcTriangle.push_back(img1Points[src[i].indexP1]);
-		srcTriangle.push_back(img1Points[src[i].indexP2]);
-		srcTriangle.push_back(img1Points[src[i].indexP3]);
-
-		std::vector<Point2f> dstTriangle;
-		dstTriangle.push_back(morphedPoints[dst[i].indexP1]);
-		dstTriangle.push_back(morphedPoints[dst[i].indexP2]);
-		dstTriangle.push_back(morphedPoints[dst[i].indexP3]);*/
-	Mat warpMat = getAffineTransform(src, dst);
+void computeAffineTransform(Mat& img, Mat& src, std::vector<Point2f> srcTri, std::vector<Point2f> dstTri) {
+	Mat warpMat = getAffineTransform(srcTri, dstTri);
 
 	warpAffine(src, img, warpMat, img.size(), INTER_LINEAR, BORDER_REFLECT_101);
-	//}
 }
 
 // Warps and alpha blends triangular regions from img1 and img2 to img
-void morphTriangle(Mat& img1, Mat& img2, Mat& img, TrianglePoint& t1, TrianglePoint& t2, std::vector<Point2f>& t, double alpha)
+void morphTriangle(Mat& img1, Mat& img2, Mat& img, std::vector<Point2f>& t1, std::vector<Point2f>& t2, std::vector<Point2f>& t, double alpha)
 {
-
 	// Find bounding rectangle for each triangle
 	Rect r = boundingRect(t);
 	Rect r1 = boundingRect(t1);
@@ -201,9 +233,6 @@ void morphTriangle(Mat& img1, Mat& img2, Mat& img, TrianglePoint& t1, TrianglePo
 	computeAffineTransform(warpImage1, img1Rect, t1Rect, tRect);
 	computeAffineTransform(warpImage2, img2Rect, t2Rect, tRect);
 
-	//applyAffineTransform(warpImage1, img1Rect, t1Rect, tRect);
-	//applyAffineTransform(warpImage2, img2Rect, t2Rect, tRect);
-
 	// Alpha blend rectangular patches
 	Mat imgRect = (1.0 - alpha) * warpImage1 + alpha * warpImage2;
 
@@ -211,40 +240,72 @@ void morphTriangle(Mat& img1, Mat& img2, Mat& img, TrianglePoint& t1, TrianglePo
 	multiply(imgRect, mask, imgRect);
 	multiply(img(r), Scalar(1.0, 1.0, 1.0) - mask, img(r));
 	img(r) = img(r) + imgRect;
-
-
 }
 
+const int alpha_slider_max = 100;
+int alpha_slider;
+double alpha = 0.0;
+Mat dst, img1, img2;
+std::vector<TrianglePoint> t1;
+Scalar delaunay_color(255, 255, 255), points_color(0, 0, 255);
+static void changeAlpha(int, void*)
+{
+	Mat imgMorph = Mat::zeros(img1.size(), CV_32FC3);
+	alpha = (double)alpha_slider / alpha_slider_max;
+	std::cout << "ALPHA: " << alpha << std::endl;
+
+	//do morphing
+	std::vector<Point2f> morphImgPoints;
+	findLocationOfFeaturePoints(alpha, morphImgPoints);
+
+	for (int i = 0; i < t1.size(); ++i) {
+		std::vector<Point2f> t1Vector;
+		std::vector<Point2f> t2Vector;
+		std::vector<Point2f> tVector;
+
+		t1Vector.push_back(t1.at(i).p1);
+		t1Vector.push_back(t1.at(i).p2);
+		t1Vector.push_back(t1.at(i).p3);
+
+		int indexP1 = t1.at(i).indexP1;
+		int indexP2 = t1.at(i).indexP2;
+		int indexP3 = t1.at(i).indexP3;
+
+		t2Vector.push_back(img2Points.at(indexP1));
+		t2Vector.push_back(img2Points.at(indexP2));
+		t2Vector.push_back(img2Points.at(indexP3));
+
+		Point2f p1 = (morphImgPoints.at(indexP1));
+		Point2f p2 = (morphImgPoints.at(indexP2));
+		Point2f p3 = (morphImgPoints.at(indexP3));
+		tVector.push_back(p1);
+		tVector.push_back(p2);
+		tVector.push_back(p3);
+
+		morphTriangle(img1, img2, imgMorph, t1Vector, t2Vector, tVector, alpha);
+	}
+
+	drawDelaunay(imgMorph, morphImgPoints);
+	imshow("Morphed", imgMorph / 255.0);
+}
 
 void morphImage()
 {
-	Mat img1, img2;
-	double alpha = 0.5;
+	setCorrespodingPoints(img1, img2);
 
 	//empty average image
 	Mat imgMorph = Mat::zeros(img1.size(), CV_32FC3);
+	img1.convertTo(img1, CV_32F);
+	img2.convertTo(img2, CV_32F);
 
-	// Setting the points on the image
-	setCorrespodingPoints(img1, img2);
-	for (int i = 0; i < img1Points.size(); i++) {
-		std::cout << img1Points << std::endl << std::endl;
-	}
-	for (int i = 0; i < img2Points.size(); i++) {
-		std::cout << img2Points << std::endl << std::endl;
-	}
+	generateDelauney(img1, img1Points, t1);
 
-	// The Delauney Triangulation
-	std::vector<Triangle> t1 = delaunayTriangulation(img1, 1);
-	std::vector<Triangle> t2 = delaunayTriangulation(img2, 2);
+	namedWindow("Morphed", WINDOW_AUTOSIZE); // Create Window
 
-	std::vector<Point2f> morphImgPoints = findLocationOfFeaturePoints(alpha);
-
-	for (int i = 0; i < t2.size(); ++i) {
-		morphTriangle(img1, img2, imgMorph, t1[i], t2[i], )
-	}
-
-	imshow("Delaunay Triangulation img1", img1);
-	imshow("Delaunay Triangulation img2", img2);
+	char TrackbarName[50];
+	sprintf(TrackbarName, "Alpha %d", alpha);
+	createTrackbar(TrackbarName, "Morphed", &alpha_slider, alpha_slider_max, changeAlpha);
+	changeAlpha(alpha_slider, 0);
 
 	waitKey(0);
 
