@@ -192,10 +192,39 @@ void findLocationOfFeaturePoints(double alpha, std::vector<Point2f>& morphImgPoi
 	}
 }
 
-void computeAffineTransform(Mat& img, Mat& src, std::vector<Point2f> srcTri, std::vector<Point2f> dstTri) {
-	Mat warpMat = getAffineTransform(srcTri, dstTri);
+Mat findAffineTransform(std::vector<Point2f> srcTri, std::vector<Point2f> dstTri) {
+	Mat source(3, 3, CV_32F);
+	Mat dest(3, 3, CV_32F);
 
-	warpAffine(src, img, warpMat, img.size(), INTER_LINEAR, BORDER_REFLECT_101);
+	for (int i = 0; i < srcTri.size(); ++i) {
+		source.at<float>(0, i) = srcTri[i].x;
+		source.at<float>(1, i) = srcTri[i].y;
+		source.at<float>(2, i) = 1;
+	}
+
+	for (int i = 0; i < dstTri.size(); ++i) {
+		dest.at<float>(0, i) = dstTri[i].x;
+		dest.at<float>(1, i) = dstTri[i].y;
+		dest.at<float>(2, i) = 1;
+	}
+
+	Mat T = dest * source.inv();
+
+	Mat result(2, 3, CV_32F);
+
+	for (int i = 0; i < 2; i++) {
+		for (int j = 0; j < 3; j++) {
+			result.at<float>(i, j) = T.at<float>(i, j);
+		}
+	}
+
+	return result;
+}
+
+void computeAffineTransform(Mat& img, Mat& src, std::vector<Point2f> srcTri, std::vector<Point2f> dstTri) {
+	Mat affineTransform = findAffineTransform(srcTri, dstTri);
+
+	warpAffine(src, img, affineTransform, img.size(), INTER_LINEAR, BORDER_REFLECT_101);
 }
 
 // Warps and alpha blends triangular regions from img1 and img2 to img
