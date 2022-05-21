@@ -44,6 +44,16 @@ void setCorrespondingPoints2(int event, int x, int y, int flags, void* param)
 	}
 }
 
+bool draw = false;
+void changeVisibilityDelaunay(int event, int x, int y, int flags, void* param)
+{
+	Mat* src = (Mat*)param;
+	if (event == EVENT_LBUTTONDOWN)
+	{
+		draw != draw;
+	}
+}
+
 //Part1: Setting corresponding points
 void setCorrespodingPoints(Mat& img1, Mat& img2) {
 	char fname1[MAX_PATH];
@@ -224,7 +234,26 @@ Mat findAffineTransform(std::vector<Point2f> srcTri, std::vector<Point2f> dstTri
 void computeAffineTransform(Mat& img, Mat& src, std::vector<Point2f> srcTri, std::vector<Point2f> dstTri) {
 	Mat affineTransform = findAffineTransform(srcTri, dstTri);
 
-	warpAffine(src, img, affineTransform, img.size(), INTER_LINEAR, BORDER_REFLECT_101);
+	for (int i = 0; i < src.rows; i++)
+	{
+		for (int j = 0; j < src.cols; j++)
+		{
+			int newX = affineTransform.at<float>(0, 0) * i + affineTransform.at<float>(0, 1) * j + affineTransform.at<float>(0, 2);
+			int newY = affineTransform.at<float>(1, 0) * i + affineTransform.at<float>(1, 1) * j + affineTransform.at<float>(1, 2);
+			if (newX < 0)
+				newX = 0;
+			if (newX > img.rows - 1)
+				newX = img.rows - 1;
+			if (newY < 0)
+				newY = 0;
+			if (newY > img.cols - 1)
+				newY = img.cols - 1;
+
+			img.at<float>(i, j) = src.at<float>(newX, newY);
+		}
+	}
+
+	//warpAffine(src, img, affineTransform, img.size(), INTER_LINEAR, BORDER_REFLECT_101);
 }
 
 // Warps and alpha blends triangular regions from img1 and img2 to img
@@ -271,6 +300,7 @@ void morphTriangle(Mat& img1, Mat& img2, Mat& img, std::vector<Point2f>& t1, std
 	img(r) = img(r) + imgRect;
 }
 
+
 const int alpha_slider_max = 100;
 int alpha_slider;
 double alpha = 0.0;
@@ -282,6 +312,8 @@ static void changeAlpha(int, void*)
 	Mat imgMorph = Mat::zeros(img1.size(), CV_32FC3);
 	alpha = (double)alpha_slider / alpha_slider_max;
 	std::cout << "ALPHA: " << alpha << std::endl;
+
+	setMouseCallback("Morphed", changeVisibilityDelaunay, &imgMorph);
 
 	//do morphing
 	std::vector<Point2f> morphImgPoints;
@@ -314,7 +346,7 @@ static void changeAlpha(int, void*)
 		morphTriangle(img1, img2, imgMorph, t1Vector, t2Vector, tVector, alpha);
 	}
 
-	drawDelaunay(imgMorph, morphImgPoints);
+	if (draw)drawDelaunay(imgMorph, morphImgPoints);
 	imshow("Morphed", imgMorph / 255.0);
 }
 
