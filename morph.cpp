@@ -5,7 +5,7 @@
 #include <iostream>
 #include <fstream>
 
-int pointsImg1 = 80, pointsImg2 = 80;
+int pointsImg1 = 200, pointsImg2 = 200;
 std::vector<Point2f> img1Points;
 std::vector<Point2f> img2Points;
 
@@ -25,7 +25,6 @@ void setCorrespondingPoints1(int event, int x, int y, int flags, void* param)
 	{
 		pointsImg1--;
 		img1Points.push_back(Point2f(x, y));
-		std::cout << x << " : " << y << std::endl;
 		(*src).at<Vec3b>(y, x) = Vec3b(0, 0, 255);
 		imshow("Image 1", *src);
 	}
@@ -38,13 +37,12 @@ void setCorrespondingPoints2(int event, int x, int y, int flags, void* param)
 	{
 		pointsImg2--;
 		img2Points.push_back(Point2f(x, y));
-		std::cout << x << " : " << y << std::endl;
 		(*src).at<Vec3b>(y, x) = Vec3b(0, 0, 255);
 		imshow("Image 2", *src);
 	}
 }
 
-bool draw = false;
+bool draw = true;
 void changeVisibilityDelaunay(int event, int x, int y, int flags, void* param)
 {
 	Mat* src = (Mat*)param;
@@ -64,6 +62,7 @@ void setCorrespodingPoints(Mat& img1, Mat& img2) {
 		img1 = imread(fname1, IMREAD_COLOR);
 		img2 = imread(fname2, IMREAD_COLOR);
 
+		//Setting base points (corners and half of the sides)
 		img1Points.push_back(Point2f(1, 1));
 		img1Points.push_back(Point2f(1, img1.rows / 2));
 		img1Points.push_back(Point2f(1, img1.rows - 1));
@@ -126,35 +125,6 @@ std::pair<int, int> maximums(std::vector<Point2f> t) {
 	return std::make_pair(maxX, maxY);
 }
 
-TrianglePoint generateDelaunayTriangle(Vec6f triangleList) {
-	std::vector<Point> pt(3);
-	pt[0] = Point(cvRound(triangleList[0]), cvRound(triangleList[1]));
-	pt[1] = Point(cvRound(triangleList[2]), cvRound(triangleList[3]));
-	pt[2] = Point(cvRound(triangleList[4]), cvRound(triangleList[5]));
-
-	return TrianglePoint{ pt[0], pt[1], pt[2] };
-}
-
-void drawDelaunay(Mat& img, Subdiv2D& subdiv, Scalar delaunay_color) {
-
-	std::vector<Vec6f> triangleList;
-	subdiv.getTriangleList(triangleList);
-	std::vector<Point> pt(3);
-
-	for (int i = 0; i < triangleList.size(); i++) {
-		Vec6f t = triangleList[i];
-
-		pt[0] = Point(cvRound(t[0]), cvRound(t[1]));
-		pt[1] = Point(cvRound(t[2]), cvRound(t[3]));
-		pt[2] = Point(cvRound(t[4]), cvRound(t[5]));
-
-		line(img, pt[0], pt[1], delaunay_color, 1, LINE_AA, 0);
-		line(img, pt[1], pt[2], delaunay_color, 1, LINE_AA, 0);
-		line(img, pt[2], pt[0], delaunay_color, 1, LINE_AA, 0);
-
-	}
-}
-
 //Part2: The Delaunay Triangulation
 int indexOf(Point currentPoint, std::vector<Point2f> points) {
 	for (int i = 0; i < points.size(); i++) {
@@ -197,7 +167,7 @@ void drawDelaunay(Mat& img, std::vector<Point2f> points) {
 
 	Rect rect1(0, 0, img.cols, img.rows);
 	Subdiv2D subdiv(rect1);
-	Scalar delaunay_color(255, 0, 0), points_color(0, 0, 255);
+	Scalar delaunay_color(0, 0, 0), points_color(0, 0, 255);
 
 	for (std::vector<Point2f>::iterator it = points.begin(); it != points.end(); it++) {
 		subdiv.insert(*it);
@@ -298,136 +268,60 @@ void computeAffineTransform(Mat& img, Mat& src, std::vector<Point2f> srcTri, std
 	warpAffine(src, img, affineTransform, img.size(), INTER_LINEAR, BORDER_REFLECT_101);
 }
 
-Mat computeRectangle(std::vector<Point2f> t, Mat& src)
-{
-	std::pair<int, int> mins = minimums(t);
-	std::pair<int, int> maxs = maximums(t);
-	std::cout << mins.first << " " << mins.second << "\n";
-
-	Mat dst(maxs.first - mins.first + 1, maxs.second - mins.second + 1, CV_32F);
-	std::cout << "MINE: " << dst.rows << " : " << dst.cols << "\n";
-
-	for (int i = mins.first; i < maxs.first; i++) {
-		for (int j = mins.second; j < maxs.second; j++) {
-			dst.at<float>(i, j) = src.at<float>(i, j);
-		}
-	}
-
-	return dst;
-}
-
-void morphTriangle(Mat& img1, Mat& img2, Mat& img, std::vector<Point2f>& t1, std::vector<Point2f>& t2, std::vector<Point2f>& t, double alpha)
-{
-	// Find bounding rectangle for each triangle
-	Rect r = boundingRect(t);
-	Rect r1 = boundingRect(t1);
-	Rect r2 = boundingRect(t2);
-
-	// Offset points by left top corner of the respective rectangles
-	std::vector<Point2f> t1Rect, t2Rect, tRect;
-	std::vector<Point> tRectInt;
-	for (int i = 0; i < 3; i++)
-	{
-		tRect.push_back(Point2f(t[i].x - r.x, t[i].y - r.y));
-		tRectInt.push_back(Point(t[i].x - r.x, t[i].y - r.y)); // for fillConvexPoly
-
-		t1Rect.push_back(Point2f(t1[i].x - r1.x, t1[i].y - r1.y));
-		t2Rect.push_back(Point2f(t2[i].x - r2.x, t2[i].y - r2.y));
-	}
-
-	// Get mask by filling triangle
-	Mat mask = Mat::zeros(r.height, r.width, CV_32FC3);
-	fillConvexPoly(mask, tRectInt, Scalar(1.0, 1.0, 1.0), 16, 0);
-
-	// Apply warpImage to small rectangular patches
-	Mat img1Rect, img2Rect;
-	img1(r1).copyTo(img1Rect);
-	img2(r2).copyTo(img2Rect);
-
-	Mat warpImage1 = Mat::zeros(r.height, r.width, img1Rect.type());
-	Mat warpImage2 = Mat::zeros(r.height, r.width, img2Rect.type());
-
-	computeAffineTransform(warpImage1, img1Rect, t1Rect, tRect);
-	computeAffineTransform(warpImage2, img2Rect, t2Rect, tRect);
-
-	// Alpha blend rectangular patches
-	Mat imgRect = (1.0 - alpha) * warpImage1 + alpha * warpImage2;
-
-	// Copy triangular region of the rectangular patch to the output image
-	multiply(imgRect, mask, imgRect);
-	multiply(img(r), Scalar(1.0, 1.0, 1.0) - mask, img(r));
-	img(r) = img(r) + imgRect;
-}
-
 // Warps and alpha blends triangular regions from img1 and img2 to img
 void morphTriangleTEST(Mat& img1, Mat& img2, Mat& img, std::vector<Point2f>& t1, std::vector<Point2f>& t2, std::vector<Point2f>& t, double alpha)
 {
-	// Find bounding rectangle for each triangle
-	Rect r = boundingRect(t);
-	Rect r1 = boundingRect(t1);
-	Rect r2 = boundingRect(t2);
-	//std::cout << "R: " << r1.x << ":" << r1.y << " -- " << r1.width << ":" << r1.height << "\n";
-
-	//// Offset points by left top corner of the respective rectangles
 	std::vector<Point2f> t1Rect, t2Rect, tRect;
 	std::vector<Point> tRectInt;
+	std::pair<int, int> minT1 = minimums(t1);
+	std::pair<int, int> minT2 = minimums(t2);
+	std::pair<int, int> minT = minimums(t);
+	std::pair<int, int> maxT1 = maximums(t1);
+	std::pair<int, int> maxT2 = maximums(t2);
+	std::pair<int, int> maxT = maximums(t);
+
+	int THeight = maxT.second - minT.second + 1;
+	int TWidth = maxT.first - minT.first + 1;
+	int T1Height = maxT1.second - minT1.second + 1;
+	int T1Width = maxT1.first - minT1.first + 1;
+	int T2Height = maxT2.second - minT2.second + 1;
+	int T2Width = maxT2.first - minT2.first + 1;
+
+	Rect t1ROI(minT1.first, minT1.second, T1Width, T1Height);
+	Rect t2ROI(minT2.first, minT2.second, T2Width, T2Height);
+	Rect morphedROI(minT.first, minT.second, TWidth, THeight);
+	Mat img1Rect, img2Rect;
+
+	//Copying image rectangular area into two Matrices
+	img1(t1ROI).copyTo(img1Rect);
+	img2(t2ROI).copyTo(img2Rect);
+
+	//Offsetting the points by their minimums and maximums
 	for (int i = 0; i < 3; i++)
 	{
-		tRect.push_back(Point2f(t[i].x - r.x, t[i].y - r.y));
-		tRectInt.push_back(Point(t[i].x - r.x, t[i].y - r.y)); // for fillConvexPoly
+		tRect.push_back(Point2f(t[i].x - minT.first, t[i].y - minT.second));
+		tRectInt.push_back(Point(t[i].x - minT.first, t[i].y - minT.second));
 
-		t1Rect.push_back(Point2f(t1[i].x - r1.x, t1[i].y - r1.y));
-		t2Rect.push_back(Point2f(t2[i].x - r2.x, t2[i].y - r2.y));
+		t1Rect.push_back(Point2f(t1[i].x - minT1.first, t1[i].y - minT1.second));
+		t2Rect.push_back(Point2f(t2[i].x - minT2.first, t2[i].y - minT2.second));
 	}
 
-	//// Get mask by filling triangle
-	Mat mask = Mat::zeros(r.height, r.width, CV_32FC3);
-	fillConvexPoly(mask, tRectInt, Scalar(1.0, 1.0, 1.0), 16, 0);
+	Mat warpImage1 = Mat::zeros(THeight, TWidth, img1Rect.type());
+	Mat warpImage2 = Mat::zeros(THeight, TWidth, img2Rect.type());
 
-	// Apply warpImage to small rectangular patches
-	Mat img1Rect, img2Rect;
-	img1(r1).copyTo(img1Rect);
-	img2(r2).copyTo(img2Rect);
-	/*std::pair<int, int> mins = minimums(t1);
-	std::pair<int, int> maxs = maximums(t1);
-
-	Mat img1Rect(maxs.first - mins.first + 1, maxs.second - mins.second + 1, CV_32F);
-
-	for (int i = mins.first; i < maxs.first; i++) {
-		for (int j = mins.second; j < maxs.second; j++) {
-			img1Rect.at<float>(i - mins.first, j - mins.second) = img1.at<float>(i, j);
-		}
-	}
-
-	std::pair<int, int> mins2 = minimums(t2);
-	std::pair<int, int> maxs2 = maximums(t2);
-
-	Mat img2Rect(maxs2.first - mins2.first + 1, maxs2.second - mins2.second + 1, CV_32F);
-
-	for (int i = mins2.first; i < maxs2.first; i++) {
-		for (int j = mins2.second; j < maxs2.second; j++) {
-			img2Rect.at<float>(i - mins2.first, j - mins2.second) = img2.at<float>(i, j);
-		}
-	}*/
-
-	Mat warpImage1 = Mat::zeros(r.height, r.width, img1Rect.type());
-	Mat warpImage2 = Mat::zeros(r.height, r.width, img2Rect.type());
-
+	// Afine transform & Image warping
 	computeAffineTransform(warpImage1, img1Rect, t1Rect, tRect);
-	computeAffineTransform(warpImage2, img1Rect, t2Rect, tRect);
+	computeAffineTransform(warpImage2, img2Rect, t2Rect, tRect);
 
-	//// Alpha blend rectangular patches
+	// Alpha blend
 	Mat imgRect = (1.0 - alpha) * warpImage1 + alpha * warpImage2;
 
-	//// Copy triangular region of the rectangular patch to the output image
+	Mat mask = Mat::zeros(THeight, TWidth, CV_32FC3);
+	fillConvexPoly(mask, tRectInt, Scalar(1.0, 1.0, 1.0), 16, 0);
+
 	multiply(imgRect, mask, imgRect);
-	multiply(img(r), Scalar(1.0, 1.0, 1.0) - mask, img(r));
-	img(r) = img(r) + imgRect;
-	/*for (int i = minsR.first; i < maxsR.first; i++) {
-		for (int j = minsR.second; j < maxsR.second; j++) {
-			img.at<float>(i, j) = img2.at<float>(i - minsR.first, j - minsR.second);
-		}
-	}*/
+	multiply(img(morphedROI), Scalar(1.0, 1.0, 1.0) - mask, img(morphedROI));
+	img(morphedROI) = img(morphedROI) + imgRect;
 }
 
 
@@ -473,7 +367,7 @@ static void changeAlpha(int, void*)
 		tVector.push_back(p2);
 		tVector.push_back(p3);
 
-		morphTriangle(img1, img2, imgMorph, t1Vector, t2Vector, tVector, alpha);
+		morphTriangleTEST(img1, img2, imgMorph, t1Vector, t2Vector, tVector, alpha);
 	}
 
 	if (draw)
