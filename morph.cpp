@@ -245,7 +245,6 @@ void computeAffineTransform(Mat& img, Mat& src, std::vector<Point2f> srcTri, std
 		}
 		std::cout << "\n";
 	}
-
 	for (int i = 0; i < img.rows; i++)
 	{
 		for (int j = 0; j < img.cols; j++)
@@ -260,7 +259,6 @@ void computeAffineTransform(Mat& img, Mat& src, std::vector<Point2f> srcTri, std
 				newY = 0;
 			if (newY > src.cols - 1)
 				newY = src.cols - 1;
-
 			img.at<float>(i, j) = src.at<float>(i, j);
 		}
 	}*/
@@ -316,11 +314,18 @@ void morphTriangleTEST(Mat& img1, Mat& img2, Mat& img, std::vector<Point2f>& t1,
 	// Alpha blend
 	Mat imgRect = (1.0 - alpha) * warpImage1 + alpha * warpImage2;
 
+	// the mask is a rectangular black image, acting as a bounding box for the triangle
 	Mat mask = Mat::zeros(THeight, TWidth, CV_32FC3);
-	fillConvexPoly(mask, tRectInt, Scalar(1.0, 1.0, 1.0), 16, 0);
 
-	multiply(imgRect, mask, imgRect);
-	multiply(img(morphedROI), Scalar(1.0, 1.0, 1.0) - mask, img(morphedROI));
+	/* This function draws a convex polygon, in the image given as the first parameter.
+	* tRectInt - the vertices of the polygon to be filled.
+	* Scalar(1.0, 1.0, 1.0) - the color with which the convex polygon is filled (white).
+	* LINE_8 - boundary 8-connectivity (default value)
+	*/
+	fillConvexPoly(mask, tRectInt, Scalar(1.0, 1.0, 1.0), LINE_8);
+	//mask all pixels outside the triangle, from the bounding rectangle
+	imgRect = imgRect.mul(mask);
+	img(morphedROI) = img(morphedROI).mul((Scalar(1.0, 1.0, 1.0) - mask));
 	img(morphedROI) = img(morphedROI) + imgRect;
 }
 
